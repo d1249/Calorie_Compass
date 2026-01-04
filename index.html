@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weight Loss Timeline Calculator</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --accent: #38bdf8;
+      --muted: #94a3b8;
+      --text: #e2e8f0;
+      --danger: #f87171;
+      --warn: #fbbf24;
+      --success: #34d399;
+      --border: #1f2937;
+      --card: #0b1220;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at 20% 20%, rgba(56,189,248,0.05), transparent 25%),
+        radial-gradient(circle at 80% 0%, rgba(52,211,153,0.06), transparent 20%),
+        var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 0;
+      line-height: 1.5;
+    }
+    header {
+      padding: 1rem 1rem 0.5rem;
+      text-align: center;
+    }
+    h1 { margin: 0.2rem 0; font-size: 1.5rem; }
+    p.lead { color: var(--muted); margin: 0; }
+    .container {
+      padding: 1rem;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .panel {
+      background: linear-gradient(145deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+    }
+    .panel h2 { margin-top: 0; font-size: 1.1rem; }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+    label { font-weight: 600; font-size: 0.9rem; }
+    .hint { color: var(--muted); font-size: 0.8rem; }
+    input, select, button, details summary {
+      background: #0b1020;
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 0.65rem 0.75rem;
+      font-size: 0.95rem;
+    }
+    input:focus, select:focus, button:focus { outline: 2px solid var(--accent); }
+    button {
+      cursor: pointer;
+      border: none;
+      background: linear-gradient(120deg, #38bdf8, #6366f1);
+      color: white;
+      font-weight: 700;
+      transition: transform 0.1s ease, box-shadow 0.2s ease;
+      box-shadow: 0 10px 25px rgba(99,102,241,0.25);
+    }
+    button:hover { transform: translateY(-1px); }
+    button.secondary {
+      background: #1f2937;
+      box-shadow: none;
+      border: 1px solid var(--border);
+    }
+    .row {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .pill {
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      background: #111827;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+    .status { font-weight: 700; }
+    .status.ok { color: var(--success); }
+    .status.warn { color: var(--warn); }
+    .status.danger { color: var(--danger); }
+    details {
+      background: #0c1324;
+      border-radius: 12px;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--border);
+    }
+    details summary { list-style: none; cursor: pointer; padding: 0.4rem; }
+    details[open] summary { border-bottom: 1px solid var(--border); margin-bottom: 0.5rem; }
+    .chart-area { position: relative; min-height: 220px; }
+    .table-fallback { width: 100%; border-collapse: collapse; color: var(--text); }
+    .table-fallback th, .table-fallback td { border: 1px solid var(--border); padding: 0.4rem; font-size: 0.85rem; }
+    .badge { background: rgba(56,189,248,0.15); color: #7dd3fc; padding: 0.2rem 0.5rem; border-radius: 8px; font-weight: 700; }
+    .flex-between { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+    .what-if-item { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0.5rem; }
+    .result-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; }
+    .result-card {
+      background: #0c1528;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.75rem;
+    }
+    .small { font-size: 0.85rem; color: var(--muted); }
+    .calendar { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.35rem; }
+    .day { padding: 0.35rem; border: 1px solid var(--border); border-radius: 8px; text-align: center; cursor: pointer; background: #0b1020; }
+    .day.selected { background: rgba(248,113,113,0.15); border-color: #f87171; color: #fecdd3; }
+    @media (min-width: 900px) {
+      .container { grid-template-columns: 2fr 1.1fr; }
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <header>
+    <p class="pill">Weight Loss Timeline Calculator</p>
+    <h1>Plan your path with Quick Average or Weekly Simulation</h1>
+    <p class="lead">Estimate days to target weight, energy balance, and scenario impacts. All calculations stay on your device.</p>
+  </header>
+
+  <div class="container">
+    <section class="panel" id="inputs-panel">
+      <div class="flex-between">
+        <h2>Inputs</h2>
+        <div class="row">
+          <span class="badge" id="method-label">Method: QuickAvg</span>
+          <button id="calc-btn">Calculate</button>
+        </div>
+      </div>
+      <div class="grid-2" id="core-inputs"></div>
+      <details id="adv-details">
+        <summary>Advanced settings</summary>
+        <div class="grid-2" id="advanced-inputs" style="margin-top:0.5rem"></div>
+        <div id="calendar-wrap" style="margin-top:0.75rem; display:none;">
+          <label class="small">Over-limit days (30-day month)</label>
+          <div class="calendar" id="calendar"></div>
+        </div>
+      </details>
+    </section>
+
+    <section class="panel" id="result-panel">
+      <div class="flex-between">
+        <h2>Results</h2>
+        <div class="row" id="status-row"></div>
+      </div>
+      <div class="result-grid" id="result-grid"></div>
+      <div class="grid-2" style="margin-top:0.75rem;" id="contrib-grid"></div>
+      <div style="margin-top:0.75rem;">
+        <strong>Warnings</strong>
+        <ul id="warnings" class="small"></ul>
+      </div>
+    </section>
+
+    <section class="panel" id="whatif-panel">
+      <div class="flex-between">
+        <h2>What-if adjustments</h2>
+        <span class="small">Adjust and see the new timeline vs baseline</span>
+      </div>
+      <div class="grid-2" id="whatif-grid"></div>
+      <div class="result-grid" style="margin-top:0.5rem;">
+        <div class="result-card">
+          <div class="small">Baseline days</div>
+          <div id="baseline-days" class="status ok">–</div>
+        </div>
+        <div class="result-card">
+          <div class="small">What-if days</div>
+          <div id="whatif-days" class="status">–</div>
+        </div>
+        <div class="result-card">
+          <div class="small">Change vs baseline</div>
+          <div id="delta-days" class="status">–</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="charts-panel">
+      <div class="flex-between">
+        <h2>Visuals</h2>
+        <span class="small" id="chart-note">Charts powered by Chart.js</span>
+      </div>
+      <div class="grid-2">
+        <div class="chart-area">
+          <canvas id="weight-chart"></canvas>
+          <div id="weight-fallback" class="small" style="display:none;"></div>
+        </div>
+        <div class="chart-area">
+          <canvas id="energy-chart"></canvas>
+          <div id="energy-fallback" class="small" style="display:none;"></div>
+        </div>
+      </div>
+      <div class="chart-area" style="margin-top:0.75rem;">
+        <canvas id="bar-chart"></canvas>
+        <div id="bar-fallback" class="small" style="display:none;"></div>
+      </div>
+    </section>
+
+    <section class="panel" id="export-panel">
+      <h2>Export</h2>
+      <div class="row">
+        <button class="secondary" id="export-json">Export JSON</button>
+        <button class="secondary" id="export-csv">Export CSV</button>
+        <span class="small">Download scenario, settings, and time series.</span>
+      </div>
+    </section>
+  </div>
+
+<script>
+(() => {
+  const qs = (sel) => document.querySelector(sel);
+  const coreInputs = [
+    { id: 'C', label: 'Daily intake C (kcal/day)', type: 'number', min: 500, step: 50, value: 2300 },
+    { id: 'B', label: 'Baseline daily burn B (kcal/day)', type: 'number', min: 800, step: 25, value: 2000 },
+    { id: 'autoB', label: 'Auto Baseline', type: 'checkbox' },
+    { id: 'S', label: 'Strength workouts per week S', type: 'number', min: 0, step: 1, value: 2 },
+    { id: 'K', label: 'Cardio workouts per week K', type: 'number', min: 0, step: 1, value: 2 },
+    { id: 'P', label: 'Steps per day P', type: 'number', min: 0, step: 500, value: 9000 },
+    { id: 'O', label: 'Over-limit days per month O', type: 'number', min: 0, step: 1, value: 3 },
+    { id: 'W0', label: 'Current weight W0 (kg)', type: 'number', min: 30, step: 0.5, value: 82 },
+    { id: 'Wt', label: 'Target weight Wt (kg)', type: 'number', min: 30, step: 0.5, value: 75 },
+    { id: 'method', label: 'Method', type: 'select', options: ['QuickAvg', 'WeeklySim'], value: 'QuickAvg' },
+  ];
+  const autoInputs = [
+    { id: 'sex', label: 'Sex', type: 'select', options: ['Male', 'Female'], value: 'Male' },
+    { id: 'age', label: 'Age (years)', type: 'number', min: 10, step: 1, value: 32 },
+    { id: 'height', label: 'Height (cm)', type: 'number', min: 120, step: 1, value: 178 },
+    { id: 'activity', label: 'Activity base', type: 'number', min: 1, step: 0.05, value: 1.2 }
+  ];
+  const advancedInputs = [
+    { id: 'P0', label: 'Baseline steps P0', type: 'number', value: 5000 },
+    { id: 'deltaOver', label: 'Extra kcal per over-limit day', type: 'number', value: 2000 },
+    { id: 'kcalPerKg', label: 'kcal per kg', type: 'number', value: 7700 },
+    { id: 'METstr', label: 'Strength MET', type: 'number', value: 5 },
+    { id: 'MinStr', label: 'Strength minutes', type: 'number', value: 60 },
+    { id: 'METcar', label: 'Cardio MET', type: 'number', value: 7 },
+    { id: 'MinCar', label: 'Cardio minutes', type: 'number', value: 30 },
+    { id: 'stepCoef', label: 'Steps coefficient', type: 'number', value: 0.375 },
+    { id: 'MaxDays', label: 'WeeklySim Max days', type: 'number', value: 2000 },
+    { id: 'Bbehavior', label: 'Baseline behavior', type: 'select', options: ['LockB', 'ScaleBByWeight'], value: 'LockB' },
+    { id: 'overModel', label: 'Over-limit modeling', type: 'select', options: ['AverageMonthly', 'CalendarDays'], value: 'AverageMonthly' },
+  ];
+
+  const whatIfFields = [
+    { id: 'C', label: 'Daily intake C', min: 800, max: 4000, step: 50, type: 'range' },
+    { id: 'P', label: 'Steps per day P', min: 0, max: 20000, step: 500, type: 'range' },
+    { id: 'S', label: 'Strength per week', min: 0, max: 10, step: 1, type: 'range' },
+    { id: 'K', label: 'Cardio per week', min: 0, max: 10, step: 1, type: 'range' },
+    { id: 'O', label: 'Over-limit days per month', min: 0, max: 12, step: 1, type: 'range' },
+  ];
+
+  const elements = {};
+  function buildInputs() {
+    const core = qs('#core-inputs');
+    coreInputs.forEach((f) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'field';
+      wrap.dataset.id = f.id;
+      const lbl = document.createElement('label');
+      lbl.textContent = f.label;
+      wrap.appendChild(lbl);
+      let input;
+      if (f.type === 'select') {
+        input = document.createElement('select');
+        f.options.forEach((opt) => {
+          const o = document.createElement('option');
+          o.value = opt; o.textContent = opt; input.appendChild(o);
+        });
+        input.value = f.value;
+      } else if (f.type === 'checkbox') {
+        input = document.createElement('input');
+        input.type = 'checkbox';
+      } else {
+        input = document.createElement('input');
+        input.type = f.type;
+        input.min = f.min;
+        input.step = f.step;
+        input.value = f.value;
+      }
+      input.id = f.id;
+      wrap.appendChild(input);
+      core.appendChild(wrap);
+      elements[f.id] = input;
+    });
+
+    const adv = qs('#advanced-inputs');
+    [...autoInputs, ...advancedInputs].forEach((f) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'field';
+      const lbl = document.createElement('label');
+      lbl.textContent = f.label;
+      wrap.appendChild(lbl);
+      let input;
+      if (f.type === 'select') {
+        input = document.createElement('select');
+        f.options.forEach((opt) => {
+          const o = document.createElement('option'); o.value = opt; o.textContent = opt; input.appendChild(o);
+        });
+        input.value = f.value;
+      } else {
+        input = document.createElement('input');
+        input.type = f.type;
+        if (f.min) input.min = f.min;
+        if (f.step) input.step = f.step;
+        input.value = f.value;
+      }
+      input.id = f.id;
+      wrap.appendChild(input);
+      adv.appendChild(wrap);
+      elements[f.id] = input;
+    });
+
+    const whatWrap = qs('#whatif-grid');
+    whatIfFields.forEach((f) => {
+      const row = document.createElement('div');
+      row.className = 'what-if-item';
+      const lbl = document.createElement('label');
+      lbl.textContent = f.label;
+      const ctrl = document.createElement('input');
+      ctrl.type = f.type;
+      ctrl.min = f.min; ctrl.max = f.max; ctrl.step = f.step;
+      ctrl.id = 'what_' + f.id;
+      const val = document.createElement('span'); val.className = 'small'; val.id = 'whatv_' + f.id; val.textContent = '–';
+      row.appendChild(lbl); row.appendChild(val);
+      row.appendChild(ctrl);
+      whatWrap.appendChild(row);
+      elements[ctrl.id] = ctrl;
+      elements[val.id] = val;
+    });
+  }
+
+  const storageKey = 'wl-timeline-calculator';
+  function syncCalendarSelection(days=[]) {
+    selectedDays = [...days];
+    document.querySelectorAll('#calendar .day').forEach((d) => {
+      const num = parseInt(d.dataset.day);
+      d.classList.toggle('selected', selectedDays.includes(num));
+    });
+  }
+  function loadScenario() {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return;
+    try {
+      const data = JSON.parse(raw);
+      Object.entries(data).forEach(([k,v]) => {
+        if (elements[k]) {
+          if (elements[k].type === 'checkbox') elements[k].checked = !!v;
+          else elements[k].value = v;
+        }
+      });
+      if (Array.isArray(data.calendarDays)) syncCalendarSelection(data.calendarDays);
+      qs('#calendar-wrap').style.display = elements['overModel'].value === 'CalendarDays' ? 'block' : 'none';
+    } catch (e) {
+      console.warn('Failed to load scenario', e);
+    }
+  }
+  function saveScenario(inputs) {
+    localStorage.setItem(storageKey, JSON.stringify(inputs));
+  }
+
+  function getInputs(sourcePrefix='') {
+    const getVal = (id) => {
+      const el = elements[sourcePrefix + id] || elements[id];
+      if (!el) return null;
+      if (el.type === 'checkbox') return el.checked;
+      if (el.tagName === 'SELECT') return el.value;
+      return parseFloat(el.value);
+    };
+    const inputs = {
+      C: getVal('C'),
+      B: getVal('B'),
+      autoB: !!getVal('autoB'),
+      S: getVal('S'),
+      K: getVal('K'),
+      P: getVal('P'),
+      O: getVal('O'),
+      W0: getVal('W0'),
+      Wt: getVal('Wt'),
+      method: getVal('method'),
+      sex: getVal('sex'),
+      age: getVal('age'),
+      height: getVal('height'),
+      activity: getVal('activity'),
+      P0: getVal('P0'),
+      deltaOver: getVal('deltaOver'),
+      kcalPerKg: getVal('kcalPerKg'),
+      METstr: getVal('METstr'),
+      MinStr: getVal('MinStr'),
+      METcar: getVal('METcar'),
+      MinCar: getVal('MinCar'),
+      stepCoef: getVal('stepCoef'),
+      MaxDays: getVal('MaxDays'),
+      Bbehavior: getVal('Bbehavior'),
+      overModel: getVal('overModel'),
+      calendarDays: [...selectedDays],
+    };
+    return inputs;
+  }
+
+  function calcAutoBaseline(inputs, Wref) {
+    const { sex, age, height, activity } = inputs;
+    if (!Wref || !age || !height || !activity) return null;
+    const base = 10 * Wref + 6.25 * height - 5 * age + (sex === 'Female' ? -161 : 5);
+    return activity * base;
+  }
+
+  function esession(MET, minutes, W) {
+    return MET * 3.5 * W / 200 * minutes;
+  }
+
+  function derive(inputs, modeW) {
+    const Wref = modeW;
+    const Esteps = inputs.stepCoef * Wref * (inputs.P - inputs.P0) / 1000;
+    const Estr = (inputs.S / 7) * esession(inputs.METstr, inputs.MinStr, Wref);
+    const Ecar = (inputs.K / 7) * esession(inputs.METcar, inputs.MinCar, Wref);
+    return { Esteps, Estr, Ecar };
+  }
+
+  function quickAvg(inputs) {
+    const errors = [];
+    if (!(inputs.Wt < inputs.W0)) errors.push('Target weight must be less than current weight.');
+    const Wavg = (inputs.W0 + inputs.Wt) / 2;
+    const Bused = inputs.autoB ? calcAutoBaseline(inputs, Wavg) : inputs.B;
+    if (!Bused) errors.push('Baseline is missing.');
+    const Kneed = inputs.kcalPerKg * (inputs.W0 - inputs.Wt);
+    const Cover = (inputs.deltaOver * inputs.O) / 30;
+    const { Esteps, Estr, Ecar } = derive(inputs, Wavg);
+    const TDEE = Bused + Esteps + Estr + Ecar;
+    const Cavg = inputs.C + Cover;
+    const Def = TDEE - Cavg;
+    let status = 'OK';
+    const warnings = [];
+    if (Def <= 0) { status = 'NoProgress'; warnings.push('Deficit is not positive. Increase burn or reduce intake.'); }
+    if (Def > 1500) warnings.push('High deficit. Consider moderating for sustainability.');
+    if (inputs.C < 1500) warnings.push('Very low intake. Ensure nutritional adequacy.');
+    const Days = Def > 0 ? Math.ceil(Kneed / Def) : Infinity;
+    const today = new Date();
+    const targetDate = isFinite(Days) ? new Date(today.getTime() + Days * 86400000) : null;
+    const contributions = { B: Bused, Esteps, Estr, Ecar, Cover };
+    const weightSeries = [];
+    const burnSeries = [];
+    const intakeSeries = [];
+    const deficitSeries = [];
+    if (isFinite(Days)) {
+      const dailyLossKg = Def / inputs.kcalPerKg;
+      for (let d = 0; d <= Days; d++) {
+        weightSeries.push(inputs.W0 - dailyLossKg * d);
+        burnSeries.push(TDEE);
+        intakeSeries.push(Cavg);
+        deficitSeries.push(Def);
+      }
+    }
+    return {
+      status, errors, warnings, Days, targetDate, Def, TDEE, Cavg,
+      contributions, series: { weightSeries, burnSeries, intakeSeries, deficitSeries },
+      meta: { method: 'QuickAvg', Kneed }
+    };
+  }
+
+  function weeklySim(inputs) {
+    const errors = [];
+    if (!(inputs.Wt < inputs.W0)) errors.push('Target weight must be less than current weight.');
+    const Cover = (inputs.deltaOver * inputs.O) / 30;
+    const Kneed = inputs.kcalPerKg * (inputs.W0 - inputs.Wt);
+    const weightSeries = [];
+    const burnSeries = [];
+    const intakeSeries = [];
+    const deficitSeries = [];
+    let W = inputs.W0;
+    let status = 'OK';
+    let reached = false;
+    for (let day = 0; day < inputs.MaxDays; day++) {
+      let Bday;
+      if (inputs.autoB) Bday = calcAutoBaseline(inputs, W);
+      else if (inputs.Bbehavior === 'ScaleBByWeight') Bday = inputs.B * (W / inputs.W0);
+      else Bday = inputs.B;
+      const { Esteps, Estr, Ecar } = derive(inputs, W);
+      let Cday;
+      if (inputs.overModel === 'CalendarDays') {
+        const monthDay = (day % 30) + 1;
+        Cday = inputs.C + (inputs.calendarDays.includes(monthDay) ? inputs.deltaOver : 0);
+      } else {
+        Cday = inputs.C + Cover;
+      }
+      const TDEE = Bday + Esteps + Estr + Ecar;
+      const Def = TDEE - Cday;
+      const dW = Def / inputs.kcalPerKg;
+      W = W - dW;
+      weightSeries.push(W);
+      burnSeries.push(TDEE);
+      intakeSeries.push(Cday);
+      deficitSeries.push(Def);
+      if (W <= inputs.Wt) { reached = true; break; }
+    }
+    if (!reached) status = 'MaxDaysReached';
+    const Days = weightSeries.length;
+    const avg = (arr) => arr.reduce((a,b)=>a+b,0) / (arr.length || 1);
+    const DefAvg = avg(deficitSeries);
+    const TDEEavg = avg(burnSeries);
+    const Cavg = avg(intakeSeries);
+    const today = new Date();
+    const targetDate = reached ? new Date(today.getTime() + Days * 86400000) : null;
+    const warnings = [];
+    if (DefAvg <= 0) warnings.push('Deficit is not positive. Increase burn or reduce intake.');
+    if (DefAvg > 1500) warnings.push('High deficit. Consider moderating for sustainability.');
+    if (inputs.C < 1500) warnings.push('Very low intake. Ensure nutritional adequacy.');
+    const contributions = derive(inputs, inputs.autoB ? (inputs.Wt + inputs.W0)/2 : inputs.W0);
+    const baseB = inputs.autoB ? calcAutoBaseline(inputs, inputs.W0) : inputs.B;
+    return {
+      status, errors, warnings, Days, targetDate, Def: DefAvg, TDEE: TDEEavg, Cavg,
+      contributions: { B: baseB, ...contributions, Cover },
+      series: { weightSeries, burnSeries, intakeSeries, deficitSeries },
+      meta: { method: 'WeeklySim', Kneed, reached }
+    };
+  }
+
+  let selectedDays = [];
+  function buildCalendar() {
+    const cal = qs('#calendar');
+    cal.innerHTML = '';
+    for (let d = 1; d <= 30; d++) {
+      const btn = document.createElement('div');
+      btn.className = 'day';
+      btn.textContent = d;
+      btn.dataset.day = d;
+      btn.addEventListener('click', () => {
+        const dayNum = parseInt(btn.dataset.day);
+        if (selectedDays.includes(dayNum)) {
+          selectedDays = selectedDays.filter(x => x !== dayNum);
+        } else {
+          selectedDays.push(dayNum);
+        }
+        btn.classList.toggle('selected');
+      });
+      cal.appendChild(btn);
+    }
+  }
+
+  let chartsReady = false;
+  function checkCharts() {
+    chartsReady = typeof Chart !== 'undefined';
+    if (!chartsReady) {
+      qs('#chart-note').textContent = 'Chart.js not available. Showing table fallback.';
+    }
+  }
+
+  let weightChart, energyChart, barChart;
+  function renderCharts(result, inputs) {
+    const series = result.series;
+    if (!chartsReady) { renderFallbackTables(series, result); return; }
+    const labels = series.weightSeries.map((_, i) => i + 1);
+    if (weightChart) weightChart.destroy();
+    weightChart = new Chart(qs('#weight-chart').getContext('2d'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Weight (kg)', data: series.weightSeries, borderColor: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.15)', tension: 0.25 },
+          { label: 'Target weight', data: labels.map(()=>inputs.Wt), borderColor: '#f87171', borderDash: [6,4], pointRadius: 0 }
+        ]
+      },
+      options: { responsive: true, plugins: { legend: { labels: { color: '#e2e8f0' } } }, scales: { x: { ticks:{ color:'#94a3b8' } }, y:{ ticks:{ color:'#94a3b8' } } } }
+    });
+
+    if (energyChart) energyChart.destroy();
+    energyChart = new Chart(qs('#energy-chart').getContext('2d'), {
+      type: 'line',
+      data: { labels, datasets: [
+        { label: 'Burn (kcal)', data: series.burnSeries, borderColor: '#34d399', backgroundColor: 'rgba(52,211,153,0.15)', tension:0.25 },
+        { label: 'Intake (kcal)', data: series.intakeSeries, borderColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.12)', tension:0.25 }
+      ]},
+      options: { responsive: true, plugins: { legend:{ labels:{ color:'#e2e8f0' } } }, scales:{ x:{ ticks:{ color:'#94a3b8' } }, y:{ ticks:{ color:'#94a3b8' } } } }
+    });
+
+    if (barChart) barChart.destroy();
+    const contrib = result.contributions;
+    barChart = new Chart(qs('#bar-chart').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: ['Baseline B', 'Steps', 'Strength', 'Cardio', 'Over-limit penalty', 'Deficit'],
+        datasets: [{
+          label: 'kcal/day',
+          data: [contrib.B, contrib.Esteps, contrib.Estr, contrib.Ecar, -contrib.Cover, result.Def],
+          backgroundColor: ['#6366f1','#38bdf8','#22d3ee','#34d399','#f87171','#fbbf24']
+        }]
+      },
+      options: { responsive:true, plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ color:'#94a3b8' } }, y:{ ticks:{ color:'#94a3b8' } } } }
+    });
+  }
+
+  function renderFallbackTables(series, result) {
+    const weightDiv = qs('#weight-fallback');
+    const energyDiv = qs('#energy-fallback');
+    const barDiv = qs('#bar-fallback');
+    weightDiv.style.display = 'block'; energyDiv.style.display='block'; barDiv.style.display='block';
+    qs('#weight-chart').style.display='none';
+    qs('#energy-chart').style.display='none';
+    qs('#bar-chart').style.display='none';
+    const rows = series.weightSeries.map((w,i)=>`<tr><td>${i+1}</td><td>${w.toFixed(2)}</td></tr>`).join('');
+    weightDiv.innerHTML = `<table class="table-fallback"><tr><th>Day</th><th>Weight (kg)</th></tr>${rows}</table>`;
+    const rows2 = series.burnSeries.map((b,i)=>`<tr><td>${i+1}</td><td>${b.toFixed(0)}</td><td>${series.intakeSeries[i].toFixed(0)}</td><td>${series.deficitSeries[i].toFixed(0)}</td></tr>`).join('');
+    energyDiv.innerHTML = `<table class="table-fallback"><tr><th>Day</th><th>Burn</th><th>Intake</th><th>Deficit</th></tr>${rows2}</table>`;
+    const c = result.contributions;
+    barDiv.innerHTML = `<table class="table-fallback"><tr><th>Factor</th><th>kcal/day</th></tr>
+      <tr><td>Baseline B</td><td>${c.B.toFixed(0)}</td></tr>
+      <tr><td>Steps</td><td>${c.Esteps.toFixed(0)}</td></tr>
+      <tr><td>Strength</td><td>${c.Estr.toFixed(0)}</td></tr>
+      <tr><td>Cardio</td><td>${c.Ecar.toFixed(0)}</td></tr>
+      <tr><td>Over-limit penalty</td><td>${(-c.Cover).toFixed(0)}</td></tr>
+      <tr><td>Deficit</td><td>${result.Def.toFixed(0)}</td></tr></table>`;
+  }
+
+  function setStatus(status, warnings) {
+    const row = qs('#status-row');
+    row.innerHTML = '';
+    const badge = document.createElement('span');
+    badge.className = 'status';
+    badge.textContent = status;
+    if (status === 'OK') badge.classList.add('ok');
+    if (status === 'NoProgress') badge.classList.add('danger');
+    if (status === 'MaxDaysReached') badge.classList.add('warn');
+    row.appendChild(badge);
+    warnings.forEach((w) => {
+      const pill = document.createElement('span'); pill.className='pill'; pill.textContent = w; row.appendChild(pill);
+    });
+  }
+
+  function updateResults(result) {
+    const grid = qs('#result-grid');
+    const fmt = (v, digits=0) => isFinite(v) ? v.toFixed(digits) : '—';
+    const cards = [
+      { label: 'Days to target', value: isFinite(result.Days) ? result.Days : 'No progress' },
+      { label: 'Estimated target date', value: result.targetDate ? result.targetDate.toDateString() : '—' },
+      { label: 'Average deficit (kcal/day)', value: fmt(result.Def) },
+      { label: 'Average burn TDEE (kcal/day)', value: fmt(result.TDEE) },
+      { label: 'Average intake (kcal/day)', value: fmt(result.Cavg) },
+    ];
+    grid.innerHTML = cards.map(c => `<div class="result-card"><div class="small">${c.label}</div><div class="status">${c.value}</div></div>`).join('');
+
+    const contrib = result.contributions;
+    qs('#contrib-grid').innerHTML = `
+      <div class="result-card"><div class="small">Baseline B</div><div>${fmt(contrib.B)}</div></div>
+      <div class="result-card"><div class="small">Steps</div><div>${fmt(contrib.Esteps)}</div></div>
+      <div class="result-card"><div class="small">Strength</div><div>${fmt(contrib.Estr)}</div></div>
+      <div class="result-card"><div class="small">Cardio</div><div>${fmt(contrib.Ecar)}</div></div>
+      <div class="result-card"><div class="small">Over-limit penalty</div><div>${fmt(contrib.Cover)}</div></div>
+    `;
+
+    const warnList = qs('#warnings');
+    warnList.innerHTML = '';
+    result.warnings.forEach(w => {
+      const li = document.createElement('li'); li.textContent = w; warnList.appendChild(li);
+    });
+    setStatus(result.status, result.warnings);
+  }
+
+  function displayErrors(errors) {
+    const warnList = qs('#warnings');
+    warnList.innerHTML = '';
+    errors.forEach(e => { const li = document.createElement('li'); li.textContent = e; li.style.color = 'var(--danger)'; warnList.appendChild(li); });
+    setStatus('Error', errors);
+  }
+
+  let baselineResult = null;
+  function calculate() {
+    const inputs = getInputs();
+    elements['B'].disabled = inputs.autoB;
+    const errors = [];
+    ['C','B','S','K','P','O','W0','Wt','P0','deltaOver','kcalPerKg','METstr','MinStr','METcar','MinCar','stepCoef','MaxDays'].forEach(k => {
+      if (inputs[k] === null || isNaN(inputs[k])) errors.push(`${k} is required.`);
+    });
+    if (inputs.Wt >= inputs.W0) errors.push('Target weight must be less than current weight.');
+    if (errors.length) { displayErrors(errors); return; }
+    const result = inputs.method === 'QuickAvg' ? quickAvg(inputs) : weeklySim(inputs);
+    if (result.errors.length) { displayErrors(result.errors); return; }
+    baselineResult = result;
+    saveScenario(inputs);
+    qs('#method-label').textContent = `Method: ${inputs.method}`;
+    updateResults(result);
+    renderCharts(result, inputs);
+    updateWhatIfInputs(inputs, result);
+  }
+
+  function updateWhatIfInputs(inputs, result) {
+    whatIfFields.forEach(f => {
+      const ctrl = elements['what_' + f.id];
+      const val = elements['whatv_' + f.id];
+      ctrl.value = inputs[f.id];
+      val.textContent = inputs[f.id];
+    });
+    qs('#baseline-days').textContent = isFinite(result.Days) ? result.Days : '—';
+  }
+
+  function runWhatIf() {
+    if (!baselineResult) return;
+    const baseInputs = getInputs();
+    const altInputs = { ...baseInputs };
+    whatIfFields.forEach(f => { altInputs[f.id] = parseFloat(elements['what_' + f.id].value); });
+    const result = altInputs.method === 'QuickAvg' ? quickAvg(altInputs) : weeklySim(altInputs);
+    elements['whatif-days'].textContent = isFinite(result.Days) ? result.Days : 'No progress';
+    const delta = isFinite(result.Days) && isFinite(baselineResult.Days) ? result.Days - baselineResult.Days : null;
+    elements['delta-days'].textContent = delta === null ? '—' : (delta > 0 ? '+' + delta : delta);
+  }
+
+  function exportJSON() {
+    if (!baselineResult) return alert('Calculate first.');
+    const data = { inputs: getInputs(), result: baselineResult };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'weight_loss_scenario.json'; a.click(); URL.revokeObjectURL(url);
+  }
+
+  function exportCSV() {
+    if (!baselineResult) return alert('Calculate first.');
+    const { weightSeries, burnSeries, intakeSeries, deficitSeries } = baselineResult.series;
+    let csv = 'day,weight_kg,burn_kcal,intake_kcal,deficit_kcal\n';
+    for (let i = 0; i < weightSeries.length; i++) {
+      csv += `${i+1},${weightSeries[i].toFixed(2)},${burnSeries[i].toFixed(0)},${intakeSeries[i].toFixed(0)},${deficitSeries[i].toFixed(0)}\n`;
+    }
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'weight_loss_series.csv'; a.click(); URL.revokeObjectURL(url);
+  }
+
+  function bindEvents() {
+    qs('#calc-btn').addEventListener('click', calculate);
+    Object.values(elements).forEach(el => {
+      if (el.id && el.id.startsWith('what_')) return;
+      el.addEventListener('change', () => {
+        if (el.id === 'method') qs('#method-label').textContent = 'Method: ' + el.value;
+        if (el.id === 'overModel') qs('#calendar-wrap').style.display = el.value === 'CalendarDays' ? 'block' : 'none';
+        calculate();
+      });
+    });
+    whatIfFields.forEach(f => {
+      const ctrl = elements['what_' + f.id];
+      const val = elements['whatv_' + f.id];
+      ctrl.addEventListener('input', () => { val.textContent = ctrl.value; runWhatIf(); });
+    });
+    qs('#export-json').addEventListener('click', exportJSON);
+    qs('#export-csv').addEventListener('click', exportCSV);
+  }
+
+  buildInputs();
+  buildCalendar();
+  checkCharts();
+  loadScenario();
+  bindEvents();
+  calculate();
+})();
+</script>
+</body>
+</html>
