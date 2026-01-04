@@ -118,6 +118,7 @@
     .compact-table { width: 100%; border-collapse: collapse; color: var(--text); margin-top: 0.35rem; }
     .compact-table th, .compact-table td { border: 1px solid var(--border); padding: 0.35rem; font-size: 0.85rem; text-align: left; }
     .badge { background: rgba(56,189,248,0.15); color: #7dd3fc; padding: 0.2rem 0.5rem; border-radius: 8px; font-weight: 700; }
+    .pill.badge-intake { background: rgba(251,191,36,0.18); color: #fcd34d; border: 1px solid rgba(251,191,36,0.35); }
     .flex-between { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
     .what-if-item { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0.5rem; }
     .result-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; }
@@ -131,6 +132,11 @@
     .calendar { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.35rem; }
     .day { padding: 0.35rem; border: 1px solid var(--border); border-radius: 8px; text-align: center; cursor: pointer; background: #0b1020; }
     .day.selected { background: rgba(248,113,113,0.15); border-color: #f87171; color: #fecdd3; }
+    .intake-field { border: 1px solid rgba(251,191,36,0.55); box-shadow: inset 0 0 0 1px rgba(251,191,36,0.2); background: rgba(251,191,36,0.06); }
+    .intake-field:focus { outline-color: #fbbf24; }
+    .kpi-highlight { border: 1px solid rgba(251,191,36,0.55); box-shadow: 0 0 0 1px rgba(251,191,36,0.15); background: rgba(251,191,36,0.08); }
+    .read-only { background: #0d1529; color: #e2e8f0; border-style: dashed; }
+    .helper { font-size: 0.8rem; color: var(--muted); margin-top: -0.2rem; }
     @media (min-width: 900px) {
       .container { grid-template-columns: 2fr 1.1fr; }
     }
@@ -241,9 +247,9 @@
 (() => {
   const qs = (sel) => document.querySelector(sel);
   const coreInputs = [
-    { id: 'C', label: 'Daily intake C (kcal/day)', type: 'number', min: 500, step: 50, value: 2300 },
-    { id: 'B', label: 'Baseline daily burn B (kcal/day)', type: 'number', min: 800, step: 25, value: 2000 },
-    { id: 'autoB', label: 'Auto Baseline', type: 'checkbox' },
+    { id: 'C', label: 'Daily intake C (kcal/day)', type: 'number', min: 500, step: 50, value: 2300, intake: true, helper: 'This is your normal day intake, over limit days are added separately.' },
+    { id: 'baselineMode', label: 'Baseline mode', type: 'select', options: ['Calculated from metabolism', 'Manual entry'], value: 'Calculated from metabolism' },
+    { id: 'B', label: 'Baseline daily burn B (kcal/day)', type: 'number', min: 800, step: 25, value: 2000, helper: 'Sedentary baseline before steps and workouts' },
     { id: 'S', label: 'Strength workouts per week S', type: 'number', min: 0, step: 1, value: 2 },
     { id: 'K', label: 'Cardio workouts per week K', type: 'number', min: 0, step: 1, value: 2 },
     { id: 'P', label: 'Steps per day P', type: 'number', min: 0, step: 500, value: 9000 },
@@ -252,11 +258,11 @@
     { id: 'Wt', label: 'Target weight Wt (kg)', type: 'number', min: 30, step: 0.5, value: 75 },
     { id: 'method', label: 'Method', type: 'select', options: ['QuickAvg', 'WeeklySim'], value: 'QuickAvg' },
   ];
-  const autoInputs = [
+  const metabolismInputs = [
     { id: 'sex', label: 'Sex', type: 'select', options: ['Male', 'Female'], value: 'Male' },
     { id: 'age', label: 'Age (years)', type: 'number', min: 10, step: 1, value: 32 },
     { id: 'height', label: 'Height (cm)', type: 'number', min: 120, step: 1, value: 178 },
-    { id: 'activity', label: 'Activity base', type: 'number', min: 1, step: 0.05, value: 1.2 }
+    { id: 'activity', label: 'Activity base (sedentary multiplier)', type: 'number', min: 1, step: 0.05, value: 1.2, helper: 'Sedentary baseline multiplier before adding steps and workouts.' }
   ];
   const advancedInputs = [
     { id: 'P0', label: 'Baseline steps P0', type: 'number', value: 5000 },
@@ -287,39 +293,16 @@
       const wrap = document.createElement('div');
       wrap.className = 'field';
       wrap.dataset.id = f.id;
+      wrap.dataset.group = f.intake ? 'intake' : 'core';
       const lbl = document.createElement('label');
       lbl.textContent = f.label;
-      wrap.appendChild(lbl);
-      let input;
-      if (f.type === 'select') {
-        input = document.createElement('select');
-        f.options.forEach((opt) => {
-          const o = document.createElement('option');
-          o.value = opt; o.textContent = opt; input.appendChild(o);
-        });
-        input.value = f.value;
-      } else if (f.type === 'checkbox') {
-        input = document.createElement('input');
-        input.type = 'checkbox';
-      } else {
-        input = document.createElement('input');
-        input.type = f.type;
-        input.min = f.min;
-        input.step = f.step;
-        input.value = f.value;
+      if (f.intake) {
+        const badge = document.createElement('span');
+        badge.className = 'pill badge-intake';
+        badge.style.marginLeft = '0.4rem';
+        badge.textContent = 'Intake';
+        lbl.appendChild(badge);
       }
-      input.id = f.id;
-      wrap.appendChild(input);
-      core.appendChild(wrap);
-      elements[f.id] = input;
-    });
-
-    const adv = qs('#advanced-inputs');
-    [...autoInputs, ...advancedInputs].forEach((f) => {
-      const wrap = document.createElement('div');
-      wrap.className = 'field';
-      const lbl = document.createElement('label');
-      lbl.textContent = f.label;
       wrap.appendChild(lbl);
       let input;
       if (f.type === 'select') {
@@ -327,6 +310,78 @@
         f.options.forEach((opt) => {
           const o = document.createElement('option'); o.value = opt; o.textContent = opt; input.appendChild(o);
         });
+        input.value = f.value;
+      } else {
+        input = document.createElement('input');
+        input.type = f.type;
+        if (f.min) input.min = f.min;
+        if (f.step) input.step = f.step;
+        input.value = f.value;
+      }
+      input.id = f.id;
+      if (f.intake) input.classList.add('intake-field');
+      wrap.appendChild(input);
+      if (f.helper) {
+        const helper = document.createElement('div');
+        helper.className = 'helper';
+        helper.textContent = f.helper;
+        wrap.appendChild(helper);
+      }
+      core.appendChild(wrap);
+      elements[f.id] = input;
+    });
+
+    const coreMeta = document.createElement('div');
+    coreMeta.className = 'grid-2';
+    coreMeta.id = 'metabolism-inputs';
+    metabolismInputs.forEach((f) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'field';
+      wrap.dataset.group = 'metabolism';
+      const lbl = document.createElement('label'); lbl.textContent = f.label; wrap.appendChild(lbl);
+      let input;
+      if (f.type === 'select') {
+        input = document.createElement('select');
+        f.options.forEach((opt) => { const o = document.createElement('option'); o.value = opt; o.textContent = opt; input.appendChild(o); });
+        input.value = f.value;
+      } else {
+        input = document.createElement('input'); input.type = f.type; if (f.min) input.min = f.min; if (f.step) input.step = f.step; input.value = f.value;
+      }
+      input.id = f.id;
+      wrap.appendChild(input);
+      if (f.helper) {
+        const helper = document.createElement('div');
+        helper.className = 'helper';
+        helper.textContent = f.helper;
+        wrap.appendChild(helper);
+      }
+      coreMeta.appendChild(wrap);
+      elements[f.id] = input;
+    });
+    const autoWrapper = document.createElement('div');
+    autoWrapper.className = 'field';
+    autoWrapper.dataset.group = 'metabolism';
+    const lblBMR = document.createElement('label'); lblBMR.textContent = 'BMR (kcal/day)'; autoWrapper.appendChild(lblBMR);
+    const bmrInput = document.createElement('input'); bmrInput.id = 'computedBMR'; bmrInput.readOnly = true; bmrInput.classList.add('read-only'); autoWrapper.appendChild(bmrInput); elements['computedBMR'] = bmrInput;
+    const lblBase = document.createElement('label'); lblBase.textContent = 'Baseline burn used (kcal/day)';
+    const baseWrap = document.createElement('div'); baseWrap.className = 'field'; baseWrap.dataset.group = 'metabolism'; baseWrap.appendChild(lblBase);
+    const baseInput = document.createElement('input'); baseInput.id = 'computedBaseline'; baseInput.readOnly = true; baseInput.classList.add('read-only'); baseWrap.appendChild(baseInput); elements['computedBaseline'] = baseInput;
+    coreMeta.appendChild(autoWrapper);
+    coreMeta.appendChild(baseWrap);
+    core.appendChild(coreMeta);
+
+    const adv = qs('#advanced-inputs');
+    [...advancedInputs].forEach((f) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'field';
+      wrap.dataset.group = 'advanced';
+      const lbl = document.createElement('label');
+      lbl.textContent = f.label;
+      wrap.appendChild(lbl);
+      let input;
+      if (f.type === 'select') {
+        input = document.createElement('select');
+        f.options.forEach((opt) => { const o = document.createElement('option'); o.value = opt; o.textContent = opt; input.appendChild(o); });
         input.value = f.value;
       } else {
         input = document.createElement('input');
@@ -368,11 +423,28 @@
       d.classList.toggle('selected', selectedDays.includes(num));
     });
   }
+
+  function updateBaselineUI(inputs) {
+    const isCalc = isCalculatedMode(inputs);
+    document.querySelectorAll('[data-group="metabolism"]').forEach((el) => {
+      el.style.display = isCalc ? '' : 'none';
+    });
+    if (elements['B']) {
+      elements['B'].disabled = isCalc;
+      elements['B'].readOnly = isCalc;
+    }
+    const bmr = isCalc ? calcBMR(inputs, inputs.W0) : null;
+    const baseline = isCalc ? calcBaselineBurn(inputs, inputs.W0) : null;
+    if (elements['computedBMR']) elements['computedBMR'].value = bmr ? bmr.toFixed(0) : '—';
+    if (elements['computedBaseline']) elements['computedBaseline'].value = baseline ? baseline.toFixed(0) : '—';
+  }
   function loadScenario() {
     const raw = localStorage.getItem(storageKey);
     if (!raw) return;
     try {
       const data = JSON.parse(raw);
+      const baselineMode = data.baselineMode || (data.hasOwnProperty('autoB') ? (data.autoB ? 'Calculated from metabolism' : 'Manual entry') : 'Calculated from metabolism');
+      if (elements['baselineMode']) elements['baselineMode'].value = baselineMode;
       Object.entries(data).forEach(([k,v]) => {
         if (elements[k]) {
           if (elements[k].type === 'checkbox') elements[k].checked = !!v;
@@ -381,6 +453,7 @@
       });
       if (Array.isArray(data.calendarDays)) syncCalendarSelection(data.calendarDays);
       qs('#calendar-wrap').style.display = elements['overModel'].value === 'CalendarDays' ? 'block' : 'none';
+      updateBaselineUI(getInputs());
     } catch (e) {
       console.warn('Failed to load scenario', e);
     }
@@ -389,17 +462,30 @@
     localStorage.setItem(storageKey, JSON.stringify(inputs));
   }
 
-  function validateAutoBaseline(inputs) {
-    if (!inputs.autoB) return [];
+  const isCalculatedMode = (inputs) => inputs.baselineMode === 'Calculated from metabolism';
+
+  function validateCalculatedBaseline(inputs) {
+    if (!isCalculatedMode(inputs)) return [];
     const missing = [];
     ['sex', 'age', 'height', 'activity'].forEach((k) => {
       const val = inputs[k];
       if (val === null || val === '' || isNaN(val)) missing.push(k);
     });
     if (missing.length) {
-      return ['Auto baseline requires sex, age, height, and activity to estimate B.'];
+      return ['Calculated baseline requires sex, age, height, and activity to estimate B.'];
     }
     return [];
+  }
+
+  function calcBMR(inputs, Wref) {
+    if (!inputs || !inputs.sex || !inputs.age || !inputs.height || !Wref) return null;
+    return 10 * Wref + 6.25 * inputs.height - 5 * inputs.age + (inputs.sex === 'Female' ? -161 : 5);
+  }
+
+  function calcBaselineBurn(inputs, Wref) {
+    const bmr = calcBMR(inputs, Wref);
+    if (bmr === null || inputs.activity === null || isNaN(inputs.activity)) return null;
+    return inputs.activity * bmr;
   }
 
   function getInputs(sourcePrefix='') {
@@ -413,7 +499,7 @@
     const inputs = {
       C: getVal('C'),
       B: getVal('B'),
-      autoB: !!getVal('autoB'),
+      baselineMode: getVal('baselineMode'),
       S: getVal('S'),
       K: getVal('K'),
       P: getVal('P'),
@@ -468,17 +554,10 @@
     };
     const errors = [];
     Object.entries(bounds).forEach(([k,[min,max]]) => {
-      if (inputs.autoB && k === 'B') return;
+      if (isCalculatedMode(inputs) && k === 'B') return;
       if (inputs[k] < min || inputs[k] > max) errors.push(messages[k]);
     });
     return errors;
-  }
-
-  function calcAutoBaseline(inputs, Wref) {
-    const { sex, age, height, activity } = inputs;
-    if (!Wref || !age || !height || !activity) return null;
-    const base = 10 * Wref + 6.25 * height - 5 * age + (sex === 'Female' ? -161 : 5);
-    return activity * base;
   }
 
   function esession(MET, minutes, W) {
@@ -494,11 +573,11 @@
   }
 
   function quickAvg(inputs) {
-    const errors = [...validateAutoBaseline(inputs)];
+    const errors = [...validateCalculatedBaseline(inputs)];
     if (!(inputs.Wt < inputs.W0)) errors.push('Target weight must be less than current weight.');
     if (errors.length) return { errors, warnings: [], contributions: { B: 0, Esteps: 0, Estr: 0, Ecar: 0, Cover: 0 }, series: { weightSeries: [], burnSeries: [], intakeSeries: [], deficitSeries: [] } };
     const Wavg = (inputs.W0 + inputs.Wt) / 2;
-    const Bused = inputs.autoB ? calcAutoBaseline(inputs, Wavg) : inputs.B;
+    const Bused = isCalculatedMode(inputs) ? calcBaselineBurn(inputs, inputs.W0) : inputs.B;
     if (!Bused) errors.push('Baseline is missing.');
     if (errors.length) return { errors, warnings: [], contributions: { B: 0, Esteps: 0, Estr: 0, Ecar: 0, Cover: 0 }, series: { weightSeries: [], burnSeries: [], intakeSeries: [], deficitSeries: [] } };
     const Kneed = inputs.kcalPerKg * (inputs.W0 - inputs.Wt);
@@ -538,7 +617,7 @@
 
   function weeklySim(inputs) {
     const errors = [];
-    errors.push(...validateAutoBaseline(inputs));
+    errors.push(...validateCalculatedBaseline(inputs));
     if (!(inputs.Wt < inputs.W0)) errors.push('Target weight must be less than current weight.');
     if (errors.length) return { errors, warnings: [], contributions: { B: 0, Esteps: 0, Estr: 0, Ecar: 0, Cover: 0 }, series: { weightSeries: [], burnSeries: [], intakeSeries: [], deficitSeries: [] } };
     const Cover = (inputs.deltaOver * inputs.O) / 30;
@@ -552,7 +631,7 @@
     let reached = false;
     for (let day = 0; day < inputs.MaxDays; day++) {
       let Bday;
-      if (inputs.autoB) Bday = calcAutoBaseline(inputs, W);
+      if (isCalculatedMode(inputs)) Bday = calcBaselineBurn(inputs, W);
       else if (inputs.Bbehavior === 'ScaleBByWeight') Bday = inputs.B * (W / inputs.W0);
       else Bday = inputs.B;
       const { Esteps, Estr, Ecar } = derive(inputs, W);
@@ -585,8 +664,8 @@
     if (DefAvg <= 0) warnings.push('Deficit is not positive. Increase burn or reduce intake.');
     if (DefAvg > 1500) warnings.push('High deficit. Consider moderating for sustainability.');
     if (inputs.C < 1500) warnings.push('Very low intake. Ensure nutritional adequacy.');
-    const contributions = derive(inputs, inputs.autoB ? (inputs.Wt + inputs.W0)/2 : inputs.W0);
-    const baseB = inputs.autoB ? calcAutoBaseline(inputs, inputs.W0) : inputs.B;
+    const contributions = derive(inputs, isCalculatedMode(inputs) ? (inputs.Wt + inputs.W0)/2 : inputs.W0);
+    const baseB = isCalculatedMode(inputs) ? calcBaselineBurn(inputs, inputs.W0) : inputs.B;
     return {
       status, errors, warnings, Days, targetDate, Def: DefAvg, TDEE: TDEEavg, Cavg,
       contributions: { B: baseB, ...contributions, Cover },
@@ -648,8 +727,8 @@
     energyChart = new Chart(qs('#energy-chart').getContext('2d'), {
       type: 'line',
       data: { labels, datasets: [
-        { label: 'Burn (kcal)', data: series.burnSeries, borderColor: '#34d399', backgroundColor: 'rgba(52,211,153,0.15)', tension:0.25 },
-        { label: 'Intake (kcal)', data: series.intakeSeries, borderColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.12)', tension:0.25 }
+        { label: 'Burn (kcal)', data: series.burnSeries, borderColor: '#34d399', backgroundColor: 'rgba(52,211,153,0.15)', tension:0.25, borderWidth: 2 },
+        { label: 'Intake (kcal)', data: series.intakeSeries, borderColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.12)', tension:0.25, borderWidth: 3, borderDash: [8,6] }
       ]},
       options: { responsive: true, plugins: { legend:{ labels:{ color:'#e2e8f0' } } }, scales:{ x:{ ticks:{ color:'#94a3b8' } }, y:{ ticks:{ color:'#94a3b8' } } } }
     });
@@ -732,11 +811,11 @@
     const cards = [
       { label: 'Days to target', value: isFinite(result.Days) ? result.Days : 'No progress' },
       { label: 'Estimated target date', value: result.targetDate ? result.targetDate.toDateString() : '—' },
-      { label: 'Average deficit (kcal/day)', value: fmt(result.Def) },
       { label: 'Average burn TDEE (kcal/day)', value: fmt(result.TDEE) },
-      { label: 'Average intake (kcal/day)', value: fmt(result.Cavg) },
+      { label: 'Average intake (kcal/day)', value: fmt(result.Cavg), highlight: true },
+      { label: 'Average deficit (kcal/day)', value: fmt(result.Def) },
     ];
-    grid.innerHTML = cards.map(c => `<div class="result-card"><div class="small">${c.label}</div><div class="status">${c.value}</div></div>`).join('');
+    grid.innerHTML = cards.map(c => `<div class="result-card ${c.highlight ? 'kpi-highlight' : ''}"><div class="small">${c.label}</div><div class="status">${c.value}</div></div>`).join('');
 
     const contrib = result.contributions;
     qs('#contrib-grid').innerHTML = `
@@ -765,18 +844,22 @@
   let baselineResult = null;
   function calculate() {
     const inputs = getInputs();
-    elements['B'].disabled = inputs.autoB;
+    updateBaselineUI(inputs);
     const errors = [];
     ['C','S','K','P','O','W0','Wt','P0','deltaOver','kcalPerKg','METstr','MinStr','METcar','MinCar','stepCoef','MaxDays'].forEach(k => {
       if (inputs[k] === null || isNaN(inputs[k])) errors.push(`${k} is required.`);
     });
-    if (!inputs.autoB && (inputs.B === null || isNaN(inputs.B))) errors.push('B is required.');
-    if (inputs.autoB) ['sex','age','height','activity'].forEach(k => { if (inputs[k] === null || isNaN(inputs[k])) errors.push(`${k} is required for Auto Baseline.`); });
+    if (!isCalculatedMode(inputs) && (inputs.B === null || isNaN(inputs.B))) errors.push('B is required.');
+    if (isCalculatedMode(inputs)) ['sex','age','height','activity'].forEach(k => { if (inputs[k] === null || isNaN(inputs[k])) errors.push(`${k} is required for Calculated baseline.`); });
     errors.push(...validateBounds(inputs));
     if (inputs.Wt >= inputs.W0) errors.push('Target weight must be less than current weight.');
     if (errors.length) { displayErrors(errors); return; }
     const result = inputs.method === 'QuickAvg' ? quickAvg(inputs) : weeklySim(inputs);
     if (result.errors.length) { displayErrors(result.errors); return; }
+    const computedBMR = calcBMR(inputs, inputs.W0);
+    const computedBaselineBurn = isCalculatedMode(inputs) ? calcBaselineBurn(inputs, inputs.W0) : inputs.B;
+    result.computedBMR = computedBMR;
+    result.computedBaselineBurn = computedBaselineBurn;
     baselineResult = result;
     saveScenario(inputs);
     qs('#method-label').textContent = `Method: ${inputs.method}`;
@@ -830,7 +913,7 @@
   function bindEvents() {
     qs('#calc-btn').addEventListener('click', calculate);
     Object.values(elements).forEach(el => {
-      if (el.id && el.id.startsWith('what_')) return;
+      if (el.id && (el.id.startsWith('what_') || el.id.startsWith('computed'))) return;
       el.addEventListener('change', () => {
         if (el.id === 'method') qs('#method-label').textContent = 'Method: ' + el.value;
         if (el.id === 'overModel') qs('#calendar-wrap').style.display = el.value === 'CalendarDays' ? 'block' : 'none';
@@ -847,6 +930,7 @@
   }
 
   buildInputs();
+  updateBaselineUI(getInputs());
   buildCalendar();
   checkCharts();
   loadScenario();
