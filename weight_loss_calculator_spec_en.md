@@ -6,6 +6,7 @@ Build a single-page calculator that estimates
 - estimated days to reach a target weight
 - projected weight over time
 - contribution of steps, strength training, cardio, and monthly over-limit days
+- metabolic baseline and intake clarity for easier planning
 
 The app supports two calculation modes
 - Quick Average - closed-form estimate using average weight
@@ -59,23 +60,34 @@ Over-limit modeling
 - AverageMonthly - add average over-limit kcal as constant daily add-on
 - CalendarDays - model explicit over-limit days in a month
 
-### 3.3 Optional Auto baseline B
-If the user does not know B, provide an Auto Baseline option.
+### 3.3 Baseline mode (Calculated vs Manual)
+Provide a Baseline mode selector near the baseline burn input.
 
-Required inputs for Auto Baseline  
-Sex in { Male, Female }  
-Age, years  
-Height, cm  
-ActivityBase default 1.2
+Modes
+- Calculated from metabolism (default)
+- Manual entry
 
-Mifflin St Jeor
-Male BMR = 10*W + 6.25*Height - 5*Age + 5
-Female BMR = 10*W + 6.25*Height - 5*Age - 161
+Calculated mode requirements
+- Inputs shown in the core section (not hidden under Advanced): Sex in { Male, Female }, Age (years), Height (cm).
+- Baseline uses current weight W0 as the weight source.
+- Mifflin St Jeor
+  - Male BMR = 10*W + 6.25*Height - 5*Age + 5
+  - Female BMR = 10*W + 6.25*Height - 5*Age - 161
+- Baseline burn used by the model B = ActivityBase * BMR
+- ActivityBase default 1.2, label clarifies it is a sedentary baseline multiplier before steps and training are added.
+- Computed BMR and Baseline burn are displayed as read-only values.
+- Manual baseline burn input B is disabled while in Calculated mode.
 
-Baseline burn
-B = ActivityBase * BMR
+Manual mode requirements
+- Demographic inputs and computed values are hidden.
+- Baseline burn input B is editable.
 
-In QuickAvg use Wavg, in WeeklySim use current W.
+General rules
+- Switching modes updates calculations immediately.
+- Default to Calculated; if old data contains an `autoB` flag, map it to Calculated on load.
+- Keep compatibility with previous stored data; if baseline mode is missing, default to Calculated.
+- QuickAvg uses Wavg for weight-dependent formulas except BMR, which always uses W0; WeeklySim uses the current W for step/training scaling and W0 for BMR.
+- Baseline burn represents the sedentary baseline before steps and training adjustments; total burn is Baseline burn + steps adjustment + training adjustment.
 
 ## 4. Calculation logic
 
@@ -139,9 +151,10 @@ W = W0
 day = 0
 while W > Wt and day < MaxDays
   determine Bday
-    if AutoBaseline enabled -> compute from W and user demographics
-    else if LockB -> Bday = B
-    else if ScaleBByWeight -> Bday = B * (W / W0)
+    if Baseline mode Calculated -> Bcalc = ActivityBase * BMR(W0, sex, age, height) using current W only for Esteps/Estr/Ecar; baseB = Bcalc
+    if Baseline mode Manual -> baseB = B
+    if LockB -> Bday = baseB
+    if ScaleBByWeight -> Bday = baseB * (W / W0)
 
   Wref = W
   compute Esteps, Estr, Ecar
@@ -200,7 +213,9 @@ Warnings (non-blocking)
 ### 6.2 Input section
 Core inputs
 - Daily intake on normal days C
-- Baseline daily burn B with toggle Auto Baseline
+- Intake emphasis: add an Intake badge and visually distinct styling on C (thicker border, subtle tint) with helper copy "This is your normal day intake, over limit days are added separately."
+- Baseline mode selector (Calculated vs Manual)
+- Baseline daily burn B (editable only in Manual mode; disabled and grayed out in Calculated mode)
 - Strength sessions per week S
 - Cardio sessions per week K
 - Steps per day P
@@ -210,11 +225,12 @@ Core inputs
 - Method toggle QuickAvg vs WeeklySim
 - Calculate button
 
-Auto Baseline fields when enabled
+Calculated Baseline fields (shown in core inputs when Calculated is selected)
 - Sex
 - Age
 - Height
-- ActivityBase
+- ActivityBase with label explaining it is a sedentary baseline multiplier before adding steps and workouts
+- Read-only displays for computed BMR and Baseline burn (used in model)
 
 Advanced section collapsible
 - P0, deltaOver, kcalPerKg
@@ -232,7 +248,7 @@ Must show
 - Estimated end date (today + days) using the browser locale
 - Average deficit Def
 - Average burn TDEE
-- Average intake Cavg
+- Average intake Cavg highlighted in a dedicated Intake KPI card that is more visually prominent than other KPIs
 - Factor contributions
   - baseline B
   - steps Esteps
@@ -272,8 +288,8 @@ Mark
 
 ### 7.2 Energy balance
 - Line chart with two series
-  - Burn (TDEE)
-  - Intake (Cavg or Cday)
+  - Burn (TDEE) solid line
+  - Intake (Cavg or Cday) thicker dashed line labeled Intake
 - Optional shaded area showing deficit
 
 ### 7.3 Factor contribution
@@ -295,8 +311,16 @@ Mark
 Provide buttons
 - Export scenario and results as JSON
 - Export time series as CSV
+JSON must include
+- baselineMode (Calculated or Manual)
+- sex, age, height, ActivityBase
+- computed BMR and computed Baseline burn
+- all existing inputs and results
 CSV columns
 day, weight_kg, burn_kcal, intake_kcal, deficit_kcal
+CSV intake_kcal rules
+- QuickAvg: repeat Cavg for all days
+- WeeklySim: use daily intake series values
 
 ## 9. Accessibility and quality
 - Use semantic HTML
@@ -310,8 +334,10 @@ day, weight_kg, burn_kcal, intake_kcal, deficit_kcal
 - Given valid inputs, the app returns days to target and intermediate values matching formulas
 - WeeklySim produces a weight series that monotonically approaches the target under positive deficit
 - When Def <= 0 the UI shows NoProgress and actionable suggestions
+- Switching baseline mode updates BMR, Baseline burn, and downstream results immediately; Calculated mode disables manual B and shows computed values, Manual mode hides demographics and enables B.
+- Intake is visually emphasized in inputs (badge, helper line), a highlighted Intake KPI, and a thicker dashed Intake line on the energy chart.
 - Charts render correctly on mobile and desktop
-- Exported JSON and CSV contain correct data
+- Exported JSON and CSV contain correct data including baseline mode and computed metabolism values
 - Everything works offline except external CDN assets if used
 
 ## 11. Non-functional requirements
@@ -320,4 +346,4 @@ day, weight_kg, burn_kcal, intake_kcal, deficit_kcal
   - WeeklySim under 300 ms for MaxDays up to 2000
 - No backend required
 - Data stays in browser
-- Optional localStorage save and load scenarios
+- Optional localStorage save and load scenarios including baselineMode, sex, age, height, ActivityBase, and computed metabolism values; legacy `autoB` flag maps to Calculated mode.
