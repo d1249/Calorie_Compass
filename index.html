@@ -115,6 +115,8 @@
     .chart-area { position: relative; min-height: 220px; }
     .table-fallback { width: 100%; border-collapse: collapse; color: var(--text); }
     .table-fallback th, .table-fallback td { border: 1px solid var(--border); padding: 0.4rem; font-size: 0.85rem; }
+    .compact-table { width: 100%; border-collapse: collapse; color: var(--text); margin-top: 0.35rem; }
+    .compact-table th, .compact-table td { border: 1px solid var(--border); padding: 0.35rem; font-size: 0.85rem; text-align: left; }
     .badge { background: rgba(56,189,248,0.15); color: #7dd3fc; padding: 0.2rem 0.5rem; border-radius: 8px; font-weight: 700; }
     .flex-between { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
     .what-if-item { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0.5rem; }
@@ -172,6 +174,13 @@
       <div style="margin-top:0.75rem;">
         <strong>Warnings</strong>
         <ul id="warnings" class="small"></ul>
+      </div>
+      <div style="margin-top:0.75rem;">
+        <div class="flex-between">
+          <strong>Sensitivity examples</strong>
+          <span class="small">Marginal change vs baseline days</span>
+        </div>
+        <table class="compact-table" id="sensitivity-table"></table>
       </div>
     </section>
 
@@ -380,6 +389,19 @@
     localStorage.setItem(storageKey, JSON.stringify(inputs));
   }
 
+  function validateAutoBaseline(inputs) {
+    if (!inputs.autoB) return [];
+    const missing = [];
+    ['sex', 'age', 'height', 'activity'].forEach((k) => {
+      const val = inputs[k];
+      if (val === null || val === '' || isNaN(val)) missing.push(k);
+    });
+    if (missing.length) {
+      return ['Auto baseline requires sex, age, height, and activity to estimate B.'];
+    }
+    return [];
+  }
+
   function getInputs(sourcePrefix='') {
     const getVal = (id) => {
       const el = elements[sourcePrefix + id] || elements[id];
@@ -419,6 +441,39 @@
     return inputs;
   }
 
+  function validateBounds(inputs) {
+    const bounds = {
+      C: [0, 10000], B: [0, 10000], S: [0, 14], K: [0, 14], P: [0, 40000], O: [0, 30],
+      W0: [30, 300], Wt: [30, 300], P0: [0, 40000], deltaOver: [0, 10000], kcalPerKg: [1000, 20000],
+      METstr: [1, 15], METcar: [1, 20], MinStr: [0, 300], MinCar: [0, 300], stepCoef: [0, 5], MaxDays: [1, 5000]
+    };
+    const messages = {
+      C: 'Daily intake C must be between 0 and 10,000 kcal.',
+      B: 'Baseline burn B must be between 0 and 10,000 kcal.',
+      S: 'Strength sessions must be between 0 and 14 per week.',
+      K: 'Cardio sessions must be between 0 and 14 per week.',
+      P: 'Steps per day must be between 0 and 40,000.',
+      O: 'Over-limit days must be between 0 and 30 per month.',
+      W0: 'Current weight must be between 30 and 300 kg.',
+      Wt: 'Target weight must be between 30 and 300 kg.',
+      P0: 'Baseline steps must be between 0 and 40,000.',
+      deltaOver: 'Extra kcal per over-limit day must be between 0 and 10,000.',
+      kcalPerKg: 'kcal per kg must be between 1,000 and 20,000.',
+      METstr: 'Strength MET must be between 1 and 15.',
+      METcar: 'Cardio MET must be between 1 and 20.',
+      MinStr: 'Strength minutes must be between 0 and 300.',
+      MinCar: 'Cardio minutes must be between 0 and 300.',
+      stepCoef: 'Steps coefficient must be between 0 and 5.',
+      MaxDays: 'WeeklySim max days must be between 1 and 5,000.'
+    };
+    const errors = [];
+    Object.entries(bounds).forEach(([k,[min,max]]) => {
+      if (inputs.autoB && k === 'B') return;
+      if (inputs[k] < min || inputs[k] > max) errors.push(messages[k]);
+    });
+    return errors;
+  }
+
   function calcAutoBaseline(inputs, Wref) {
     const { sex, age, height, activity } = inputs;
     if (!Wref || !age || !height || !activity) return null;
@@ -439,11 +494,13 @@
   }
 
   function quickAvg(inputs) {
-    const errors = [];
+    const errors = [...validateAutoBaseline(inputs)];
     if (!(inputs.Wt < inputs.W0)) errors.push('Target weight must be less than current weight.');
+    if (errors.length) return { errors, warnings: [], contributions: { B: 0, Esteps: 0, Estr: 0, Ecar: 0, Cover: 0 }, series: { weightSeries: [], burnSeries: [], intakeSeries: [], deficitSeries: [] } };
     const Wavg = (inputs.W0 + inputs.Wt) / 2;
     const Bused = inputs.autoB ? calcAutoBaseline(inputs, Wavg) : inputs.B;
     if (!Bused) errors.push('Baseline is missing.');
+    if (errors.length) return { errors, warnings: [], contributions: { B: 0, Esteps: 0, Estr: 0, Ecar: 0, Cover: 0 }, series: { weightSeries: [], burnSeries: [], intakeSeries: [], deficitSeries: [] } };
     const Kneed = inputs.kcalPerKg * (inputs.W0 - inputs.Wt);
     const Cover = (inputs.deltaOver * inputs.O) / 30;
     const { Esteps, Estr, Ecar } = derive(inputs, Wavg);
@@ -481,7 +538,9 @@
 
   function weeklySim(inputs) {
     const errors = [];
+    errors.push(...validateAutoBaseline(inputs));
     if (!(inputs.Wt < inputs.W0)) errors.push('Target weight must be less than current weight.');
+    if (errors.length) return { errors, warnings: [], contributions: { B: 0, Esteps: 0, Estr: 0, Ecar: 0, Cover: 0 }, series: { weightSeries: [], burnSeries: [], intakeSeries: [], deficitSeries: [] } };
     const Cover = (inputs.deltaOver * inputs.O) / 30;
     const Kneed = inputs.kcalPerKg * (inputs.W0 - inputs.Wt);
     const weightSeries = [];
@@ -553,6 +612,7 @@
           selectedDays.push(dayNum);
         }
         btn.classList.toggle('selected');
+        calculate();
       });
       cal.appendChild(btn);
     }
@@ -632,6 +692,25 @@
       <tr><td>Deficit</td><td>${result.Def.toFixed(0)}</td></tr></table>`;
   }
 
+  function renderSensitivity(inputs, baseline) {
+    const table = qs('#sensitivity-table');
+    const baseDays = baseline && isFinite(baseline.Days) ? baseline.Days : null;
+    const scenarios = [
+      { label: '+2000 steps/day', mutate: (i) => ({ ...i, P: i.P + 2000 }) },
+      { label: '-200 kcal intake', mutate: (i) => ({ ...i, C: i.C - 200 }) },
+      { label: '-1 over-limit day', mutate: (i) => ({ ...i, O: Math.max(0, i.O - 1) }) }
+    ];
+    const rows = scenarios.map((s) => {
+      const altInputs = s.mutate({ ...inputs });
+      const res = altInputs.method === 'QuickAvg' ? quickAvg(altInputs) : weeklySim(altInputs);
+      const days = isFinite(res.Days) ? res.Days : null;
+      const delta = days !== null && baseDays !== null ? days - baseDays : null;
+      const deltaText = delta === null ? '—' : (delta > 0 ? '+' + delta : delta);
+      return `<tr><td>${s.label}</td><td>${days ?? '—'}</td><td>${deltaText}</td></tr>`;
+    }).join('');
+    table.innerHTML = `<thead><tr><th>Adjustment</th><th>Days</th><th>Delta vs baseline</th></tr></thead><tbody>${rows}</tbody>`;
+  }
+
   function setStatus(status, warnings) {
     const row = qs('#status-row');
     row.innerHTML = '';
@@ -688,9 +767,12 @@
     const inputs = getInputs();
     elements['B'].disabled = inputs.autoB;
     const errors = [];
-    ['C','B','S','K','P','O','W0','Wt','P0','deltaOver','kcalPerKg','METstr','MinStr','METcar','MinCar','stepCoef','MaxDays'].forEach(k => {
+    ['C','S','K','P','O','W0','Wt','P0','deltaOver','kcalPerKg','METstr','MinStr','METcar','MinCar','stepCoef','MaxDays'].forEach(k => {
       if (inputs[k] === null || isNaN(inputs[k])) errors.push(`${k} is required.`);
     });
+    if (!inputs.autoB && (inputs.B === null || isNaN(inputs.B))) errors.push('B is required.');
+    if (inputs.autoB) ['sex','age','height','activity'].forEach(k => { if (inputs[k] === null || isNaN(inputs[k])) errors.push(`${k} is required for Auto Baseline.`); });
+    errors.push(...validateBounds(inputs));
     if (inputs.Wt >= inputs.W0) errors.push('Target weight must be less than current weight.');
     if (errors.length) { displayErrors(errors); return; }
     const result = inputs.method === 'QuickAvg' ? quickAvg(inputs) : weeklySim(inputs);
@@ -701,6 +783,7 @@
     updateResults(result);
     renderCharts(result, inputs);
     updateWhatIfInputs(inputs, result);
+    renderSensitivity(inputs, result);
   }
 
   function updateWhatIfInputs(inputs, result) {
